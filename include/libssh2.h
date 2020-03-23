@@ -812,6 +812,10 @@ LIBSSH2_API int libssh2_channel_process_startup(LIBSSH2_CHANNEL *channel,
                                   sizeof("subsystem") - 1, (subsystem), \
                                   (unsigned int)strlen(subsystem))
 
+/* signal_name should be without SIG prefix */
+LIBSSH2_API int libssh2_channel_signal(LIBSSH2_CHANNEL *channel,
+                                       const char *signal_name);
+
 LIBSSH2_API ssize_t libssh2_channel_read_ex(LIBSSH2_CHANNEL *channel,
                                             int stream_id, char *buf,
                                             size_t buflen);

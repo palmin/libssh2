@@ -1763,6 +1763,11 @@ libssh2_channel_get_exit_signal(LIBSSH2_CHANNEL *channel,
     return LIBSSH2_ERROR_NONE;
 }
 
+int libssh2_channel_signal(LIBSSH2_CHANNEL *channel, 
+                           const char *signal_name) {
+
+}
+
 /*
  * _libssh2_channel_receive_window_adjust
  *
