@@ -1763,9 +1763,93 @@ libssh2_channel_get_exit_signal(LIBSSH2_CHANNEL *channel,
     return LIBSSH2_ERROR_NONE;
 }
 
+// https://tools.ietf.org/html/rfc4254#section-6.9
+//
+// 6.9.  Signals
+//   A signal can be delivered to the remote process/service using the
+//   following message.  Some systems may not implement signals, in which
+//   case they SHOULD ignore this message.
+//       byte      SSH_MSG_CHANNEL_REQUEST
+//       uint32    recipient channel
+//       string    "signal"
+//       boolean   FALSE
+//       string    signal name (without the "SIG" prefix)
+//   'signal name' values will be encoded as discussed in the passage
+//   describing SSH_MSG_CHANNEL_REQUEST messages using "exit-signal" in
+//   this section.
+
+static int channel_signal(LIBSSH2_CHANNEL * channel, const char *signal_name) {
+    LIBSSH2_SESSION *session = channel->session;
+    unsigned char *s;
+    int rc;
+    int retcode = LIBSSH2_ERROR_PROTO;
+
+    if(channel->send_signal_state == libssh2_NB_state_idle) {
+        channel->send_signal_packet_len = 20 + strlen(signal_name);
+
+        /* Zero the whole thing out */
+        memset(&channel->send_signal_state, 0,
+               sizeof(channel->send_signal_state));
+
+        _libssh2_debug(session, LIBSSH2_TRACE_CONN,
+            "deliver signal on channel %lu/%lu",
+            channel->local.id,
+            channel->remote.id);
+
+        s = channel->send_signal_packet =
+            LIBSSH2_ALLOC(session, channel->send_signal_packet_len);
+        if(!s) {
+            _libssh2_error(session, LIBSSH2_ERROR_ALLOC,
+                           "Unable to allocate memory for signal packet");
+            return LIBSSH2_ERROR_ALLOC;
+        }
+
+        *(s++) = SSH_MSG_CHANNEL_REQUEST;
+        _libssh2_store_u32(&s, channel->remote.id);
+        _libssh2_store_str(&s, (char *)"signal",
+                           sizeof("signal") - 1);
+        *(s++) = 0x00; /* Don't reply */
+        _libssh2_store_str(&s, (char *)signal_name,
+                           strlen(signal_name));
+
+        channel->send_signal_state = libssh2_NB_state_created;
+    }
+
+    if(channel->send_signal_state == libssh2_NB_state_created) {
+        rc = _libssh2_transport_send(session, channel->send_signal_packet,
+                                     channel->send_signal_packet_len,
+                                     NULL, 0);
+        if(rc == LIBSSH2_ERROR_EAGAIN) {
+            _libssh2_error(session, rc,
+                           "Would block sending signal request");
+            return rc;
+        }
+        else if(rc) {
+            channel->send_signal_state = libssh2_NB_state_idle;
+            return _libssh2_error(session, rc,
+                                  "Unable to send signal packet");
+        }
+
+        LIBSSH2_FREE(session, channel->send_signal_packet);
+        channel->send_signal_packet = NULL;
+
+        retcode = LIBSSH2_ERROR_NONE;
+    }
+
+    channel->send_signal_state = libssh2_NB_state_idle;
+    return retcode;
+}
+
 int libssh2_channel_signal(LIBSSH2_CHANNEL *channel, 
                            const char *signal_name) {
+    int rc;
 
+    if(!channel)
+        return LIBSSH2_ERROR_BAD_USE;
+
+    BLOCK_ADJUST(rc, channel->session,
+                 channel_signal(channel, signal_name));
+    return rc;
 }
 
 /*
@@ -2780,6 +2864,9 @@ int _libssh2_channel_free(LIBSSH2_CHANNEL *channel)
     /*
      * Make sure all memory used in the state variables are free
      */
+    if(channel->send_signal_packet) {
+        LIBSSH2_FREE(session, channel->send_signal_packet);
+    }
     if(channel->setenv_packet) {
         LIBSSH2_FREE(session, channel->setenv_packet);
     }

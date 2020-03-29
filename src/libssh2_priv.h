@@ -393,6 +393,12 @@ struct _LIBSSH2_CHANNEL
     unsigned char setenv_local_channel[4];
     packet_requirev_state_t setenv_packet_requirev_state;
 
+    /* State variables used in libssh2_signal() */
+    libssh2_nonblocking_states send_signal_state;
+    unsigned char *send_signal_packet;
+    size_t send_signal_packet_len;
+    packet_requirev_state_t send_signal_packet_requirev_state;
+
     /* State variables used in libssh2_channel_request_pty_ex()
        libssh2_channel_request_pty_size_ex() */
     libssh2_nonblocking_states reqPTY_state;
