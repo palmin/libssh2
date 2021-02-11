@@ -753,6 +753,10 @@ LIBSSH2_API int libssh2_channel_forward_cancel(LIBSSH2_LISTENER *listener);
 LIBSSH2_API LIBSSH2_CHANNEL *
 libssh2_channel_forward_accept(LIBSSH2_LISTENER *listener);
 
+LIBSSH2_API int libssh2_channel_signal(LIBSSH2_CHANNEL *channel,
+                                       const char *signame, 
+                                       unsigned int signame_len);
+
 LIBSSH2_API int libssh2_channel_setenv_ex(LIBSSH2_CHANNEL *channel,
                                           const char *varname,
                                           unsigned int varname_len,

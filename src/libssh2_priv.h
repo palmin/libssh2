@@ -386,8 +386,15 @@ struct _LIBSSH2_CHANNEL
     void *abstract;
       LIBSSH2_CHANNEL_CLOSE_FUNC((*close_cb));
 
-    /* State variables used in libssh2_channel_setenv_ex() */
+    /* State variables used in libssh2_channel_signal() */
     libssh2_nonblocking_states setenv_state;
+    unsigned char *signal_packet;
+    size_t signal_packet_len;
+    unsigned char signal_local_channel[4];
+    packet_requirev_state_t signal_packet_requirev_state;
+
+    /* State variables used in libssh2_channel_setenv_ex() */
+    libssh2_nonblocking_states signal_state;
     unsigned char *setenv_packet;
     size_t setenv_packet_len;
     unsigned char setenv_local_channel[4];
