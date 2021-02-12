@@ -2879,6 +2879,9 @@ int _libssh2_channel_free(LIBSSH2_CHANNEL *channel)
     /*
      * Make sure all memory used in the state variables are free
      */
+    if(channel->signal_packet) {
+        LIBSSH2_FREE(session, channel->signal_packet);
+    }
     if(channel->setenv_packet) {
         LIBSSH2_FREE(session, channel->setenv_packet);
     }
