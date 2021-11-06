@@ -485,9 +485,9 @@ libssh2_userauth_password_ex(LIBSSH2_SESSION *session, const char *username,
  *
  * Change method from ssh-rsa to rsa-sha2-256 is RSA SHA2 is supported.
  */
-void upgrade_publickey_method(LIBSSH2_SESSION * session, 
-                              unsigned char **method,
-                              size_t *method_len) {
+static void upgrade_publickey_method(LIBSSH2_SESSION * session, 
+                                     unsigned char **method,
+                                     size_t *method_len) {
 #if LIBSSH2_RSA_SHA2
     if(*method_len == 7 && memcmp(*method, "ssh-rsa", 7) == 0) {
         /* we upgrade signing method if server supports it */
@@ -597,9 +597,6 @@ memory_read_publickey(LIBSSH2_SESSION * session, unsigned char **method,
     *method = pubkey;
     *method_len = sp1 - pubkey - 1;
 
-     /* upgrade to sha2 for rsa keys when supported */
-    upgrade_publickey_method(session, method, method_len);
-
     *pubkeydata = tmp;
     *pubkeydata_len = tmp_len;
 
@@ -703,9 +700,6 @@ file_read_publickey(LIBSSH2_SESSION * session, unsigned char **method,
     *method = pubkey;
     *method_len = sp1 - pubkey - 1;
     
-    /* upgrade to sha2 for rsa keys when supported */
-    upgrade_publickey_method(session, method, method_len);
-
     *pubkeydata = tmp;
     *pubkeydata_len = tmp_len;
 
@@ -1220,6 +1214,11 @@ _libssh2_userauth_publickey(LIBSSH2_SESSION *session,
                                   "Invalid public key");
             }
         }
+
+        /* upgrade to sha2 for rsa keys when supported */
+        upgrade_publickey_method(session, &session->userauth_pblc_method, 
+                                 &session->userauth_pblc_method_len);
+
         /*
          * 45 = packet_type(1) + username_len(4) + servicename_len(4) +
          * service_name(14)"ssh-connection" + authmethod_len(4) +
