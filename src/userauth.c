@@ -552,11 +552,51 @@ libssh2_userauth_password_ex(LIBSSH2_SESSION *session, const char *username,
 /*
  * upgrade_publickey_method 
  *
- * Change method from ssh-rsa to rsa-sha2-256 is RSA SHA2 is supported.
+ * Change method from ssh-rsa to rsa-sha2-256 is RSA SHA2 and
+ * from sk-ecdsa-sha2-nistp256@openssh.com to webauthn-sk-ecdsa 
+ * if supported.
  */
 void upgrade_publickey_method(LIBSSH2_SESSION * session, 
                               unsigned char **method,
                               size_t *method_len) {
+    if(*method_len == 34 && memcmp(*method, "sk-ecdsa-sha2-nistp256@openssh.com", 34) == 0) {
+        /* we upgrade signing method if server supports it */
+        if(session->server_sign_algorithms) {
+            size_t pos = 0;
+            while(pos < session->server_sign_algorithms_len) {
+                /* values are comma separated and we locate next boundary */
+                size_t start = pos;
+                while(pos < session->server_sign_algorithms_len) {
+                    if(session->server_sign_algorithms[pos] == ',') break;
+                    pos += 1;
+                }
+
+                size_t part_len = pos - start;
+                if(pos < session->server_sign_algorithms_len) {
+                    pos += 1; /* skip past comma */
+                }
+
+                if(part_len == 43) {
+                    unsigned char* part = session->server_sign_algorithms + start;
+                    if(memcmp(part, "webauthn-sk-ecdsa-sha2-nistp256@openssh.com", 43) == 0) {
+                        _libssh2_debug(session,
+                                   LIBSSH2_TRACE_AUTH,
+                                   "Upgrading authentication method from %.*s to %.*s",
+                                   *method_len, *method, part_len, part);
+                        
+                        // server supports one of the upgraded methods client knows
+                        LIBSSH2_FREE(session, *method);
+                        *method_len = part_len;
+                        *method = LIBSSH2_ALLOC(session, part_len);
+                        memcpy(*method, part, part_len);
+
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
 #if LIBSSH2_RSA_SHA2
     if(*method_len == 7 && memcmp(*method, "ssh-rsa", 7) == 0) {
         /* we upgrade signing method if server supports it */
