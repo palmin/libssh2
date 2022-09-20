@@ -1292,7 +1292,7 @@ static const LIBSSH2_HOSTKEY_METHOD *hostkey_methods[] = {
     &hostkey_method_ecdsa_ssh_nistp256_cert,
     &hostkey_method_ecdsa_ssh_nistp384_cert,
     &hostkey_method_ecdsa_ssh_nistp521_cert,
-    &hostkey_method_ecdsa_ssh_nistp256_sk,
+//    &hostkey_method_ecdsa_ssh_nistp256_sk,
     &hostkey_method_ecdsa_ssh_nistp256_sk_webauthn,
 #endif
 #if LIBSSH2_ED25519
