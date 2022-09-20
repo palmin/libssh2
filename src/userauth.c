@@ -1379,6 +1379,11 @@ _libssh2_userauth_publickey(LIBSSH2_SESSION *session,
             }
             memcpy(session->userauth_pblc_method, pubkeydata + 4,
                    session->userauth_pblc_method_len);
+
+             /* upgrade to sha2 for rsa keys when supported */
+            upgrade_publickey_method(session, &session->userauth_pblc_method, 
+                                     &session->userauth_pblc_method_len);
+
         }
         /*
          * Check that public key method matches pubklic key.
