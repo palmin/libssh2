@@ -1254,6 +1254,34 @@ static size_t actual_signature_length(const unsigned char *userauth_pblc_method,
     return sig_len;
 }
 
+static int public_key_method_match(LIBSSH2_SESSION *session, const unsigned char *pubkeydata) {
+    // check for regular situation where method and public key match 
+    int pubkey_len = _libssh2_ntohu32(pubkeydata);
+    if(pubkey_len == session->userauth_pblc_method_len &&
+       memcmp(pubkeydata + 4, session->userauth_pblc_method, pubkey_len) == 0) {
+        return 1;
+    }
+
+    // accept "ssh-rsa" public keys with method prefix "rsa-sha2-" to satisfy RFC 8332
+    if(pubkey_len == 7 && memcmp(pubkeydata + 4, "ssh-rsa", 7) == 0 &&
+       (session->userauth_pblc_method_len) >= 9 && 
+       memcmp(session->userauth_pblc_method, "rsa-sha2-", 9) == 0) {
+
+        return 1;
+    }
+    
+    // accept "webauthn-sk-ecdsa-" method for "sk-ecdsa-" keys
+    if(pubkey_len >= 9 && memcmp(pubkeydata + 4, "sk-ecdsa-", 9) == 0 &&
+       (session->userauth_pblc_method_len) >= 18 &&
+       memcmp(session->userauth_pblc_method, "webauthn-sk-ecdsa-", 18) == 0) {
+
+        return 1;
+    }
+
+    // we can't accept method for pubklic key
+    return 0;
+}
+
 int
 _libssh2_userauth_publickey(LIBSSH2_SESSION *session,
                             const char *username,
@@ -1313,23 +1341,11 @@ _libssh2_userauth_publickey(LIBSSH2_SESSION *session,
                    session->userauth_pblc_method_len);
         }
         /*
-         * The length of the method name read from plaintext prefix in the
-         * file must match length embedded in the key.
-         * TODO: The data should match too but we don't check that. Should we?
+         * Check that public key method matches pubklic key.
          */
-        else if(session->userauth_pblc_method_len !=
-                 _libssh2_ntohu32(pubkeydata)) {
-        
-            // we accept mismatch if public key is "ssh-rsa" and 
-            // method has prefix "rsa-sha2-" to satisfy RFC 8332
-            if(session->userauth_pblc_method_len < 9 ||
-               _libssh2_ntohu32(pubkeydata) != 7 ||
-               memcmp(pubkeydata + 4, "ssh-rsa", 7) ||
-               memcmp(session->userauth_pblc_method, "rsa-sha2-", 9)) {
-
+        else if(!public_key_method_match(session, pubkeydata)) {
                 return _libssh2_error(session, LIBSSH2_ERROR_PUBLICKEY_UNVERIFIED,
-                                  "Invalid public key");
-            }
+                                  "Invalid public key method");
         }
         /*
          * 45 = packet_type(1) + username_len(4) + servicename_len(4) +
