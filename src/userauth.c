@@ -1243,8 +1243,10 @@ static size_t actual_signature_length(const unsigned char *userauth_pblc_method,
                                       size_t sig_len) {
     if(sig_len < 5) return sig_len;
 
-    if(userauth_pblc_method_len == 34 &&
-       memcmp(userauth_pblc_method, "sk-ecdsa-sha2-nistp256@openssh.com", 34) == 0) {
+    if((userauth_pblc_method_len == 34 &&
+        memcmp(userauth_pblc_method, "sk-ecdsa-sha2-nistp256@openssh.com", 34) == 0) ||
+       (userauth_pblc_method_len == 43 &&
+        memcmp(userauth_pblc_method, "webauthn-sk-ecdsa-sha2-nistp256@openssh.com", 43) == 0)) {
 
        return sig_len - 5;
     }
