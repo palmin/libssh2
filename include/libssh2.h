@@ -326,6 +326,19 @@ typedef struct _LIBSSH2_USERAUTH_KBDINT_RESPONSE
   void name(LIBSSH2_SESSION *session, void **session_abstract, \
             LIBSSH2_CHANNEL *channel, void **channel_abstract)
 
+#define LIBSSH2_AUTHAGENT_FUNC(name) \
+  void name(LIBSSH2_SESSION *session, LIBSSH2_CHANNEL *channel, \
+            void **abstract)
+
+ #define LIBSSH2_ADD_IDENTITIES_FUNC(name) \
+  void name(LIBSSH2_SESSION *session, LIBSSH2_CHANNEL *channel, \
+            void **abstract)
+
+ #define LIBSSH2_AUTHAGENT_SIGN_FUNC(name) \
+  int name(LIBSSH2_SESSION* session, unsigned char *blob, unsigned int blen, \
+           unsigned char *data, unsigned int dlen, unsigned char **signature, \
+           unsigned int *sigLen, const char *agentPath, void **abstract)
+
 /* I/O callbacks */
 #define LIBSSH2_RECV_FUNC(name)                                         \
     ssize_t name(libssh2_socket_t socket,                               \
@@ -344,6 +357,9 @@ typedef struct _LIBSSH2_USERAUTH_KBDINT_RESPONSE
 #define LIBSSH2_CALLBACK_X11                4
 #define LIBSSH2_CALLBACK_SEND               5
 #define LIBSSH2_CALLBACK_RECV               6
+#define LIBSSH2_CALLBACK_AUTHAGENT            7
+#define LIBSSH2_CALLBACK_AUTHAGENT_IDENTITIES 8
+#define LIBSSH2_CALLBACK_AUTHAGENT_SIGN       9
 
 /* libssh2_session_method_pref() constants */
 #define LIBSSH2_METHOD_KEX          0
@@ -508,6 +524,7 @@ typedef struct _LIBSSH2_POLLFD {
 #define LIBSSH2_ERROR_KEYFILE_AUTH_FAILED       -48
 #define LIBSSH2_ERROR_RANDGEN                   -49
 #define LIBSSH2_ERROR_MISSING_AUTH_BANNER       -50
+#define LIBSSH2_ERROR_ALGO_UNSUPPORTED          -51
 
 /* this is a define to provide the old (<= 1.2.7) name */
 #define LIBSSH2_ERROR_BANNER_NONE LIBSSH2_ERROR_BANNER_RECV
@@ -1271,6 +1288,23 @@ LIBSSH2_API int
 libssh2_agent_userauth(LIBSSH2_AGENT *agent,
                const char *username,
                struct libssh2_agent_publickey *identity);
+
+/*
+ * libssh2_agent_sign()
+ *
+ * Sign a payload using a system-installed ssh-agent.
+ *
+ * Returns 0 if succeeded, or a negative value for error.
+ */
+ LIBSSH2_API int
+ libssh2_agent_sign(LIBSSH2_AGENT *agent,
+                    struct libssh2_agent_publickey *identity,
+                    unsigned char **sig,
+                    size_t *s_len,
+                    unsigned char *data,
+                    size_t d_len,
+                    const char *method,
+                    u_int method_len);
 
 /*
  * libssh2_agent_disconnect()

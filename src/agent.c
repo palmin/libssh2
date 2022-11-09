@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2009 by Daiki Ueno
- * Copyright (C) 2010-2014 by Daniel Stenberg
+ * Copyright (C) 2010-2021 by Daniel Stenberg
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms,
@@ -93,6 +93,10 @@
 /* Key constraint identifiers */
 #define SSH_AGENT_CONSTRAIN_LIFETIME 1
 #define SSH_AGENT_CONSTRAIN_CONFIRM 2
+
+/* Signature request methods */
+#define SSH_AGENT_RSA_SHA2_256 2
+#define SSH_AGENT_RSA_SHA2_512 4
 
 #ifdef PF_UNIX
 static int
@@ -375,6 +379,9 @@ agent_sign(LIBSSH2_SESSION *session, unsigned char **sig, size_t *sig_len,
     ssize_t method_len;
     unsigned char *s;
     int rc;
+    unsigned char *method_name = NULL;
+    uint32_t sign_flags = 0;
+    ssize_t plain_len;
 
     /* Create a request to sign the data */
     if(transctx->state == agent_NB_state_init) {
@@ -391,7 +398,18 @@ agent_sign(LIBSSH2_SESSION *session, unsigned char **sig, size_t *sig_len,
         _libssh2_store_str(&s, (const char *)data, data_len);
 
         /* flags */
-        _libssh2_store_u32(&s, 0);
+        if(session->userauth_pblc_method_len > 0 &&
+            session->userauth_pblc_method) {
+            if(session->userauth_pblc_method_len == 12 &&
+                !memcmp(session->userauth_pblc_method, "rsa-sha2-512", 12)) {
+                sign_flags = SSH_AGENT_RSA_SHA2_512;
+            }
+            else if(session->userauth_pblc_method_len == 12 &&
+                !memcmp(session->userauth_pblc_method, "rsa-sha2-256", 12)) {
+                sign_flags = SSH_AGENT_RSA_SHA2_256;
+            }
+        }
+        _libssh2_store_u32(&s, sign_flags);
 
         transctx->request_len = s - transctx->request;
         transctx->send_recv_total = 0;
@@ -449,7 +467,31 @@ agent_sign(LIBSSH2_SESSION *session, unsigned char **sig, size_t *sig_len,
         rc = LIBSSH2_ERROR_AGENT_PROTOCOL;
         goto error;
     }
+
+    /* method name */
+    method_name = LIBSSH2_ALLOC(session, method_len);
+    if(!method_name) {
+        rc = LIBSSH2_ERROR_ALLOC;
+        goto error;
+    }
+    memcpy(method_name, s, method_len);
     s += method_len;
+
+    plain_len = plain_method((char *)session->userauth_pblc_method,
+                             session->userauth_pblc_method_len);
+
+    /* check to see if we match requested */
+    if(((size_t)method_len != session->userauth_pblc_method_len &&
+        method_len != plain_len) ||
+        memcmp(method_name, session->userauth_pblc_method, method_len)) {
+        _libssh2_debug(session,
+                       LIBSSH2_TRACE_KEX,
+                       "Agent sign method %.*s",
+                       method_len, method_name);
+
+        rc = LIBSSH2_ERROR_ALGO_UNSUPPORTED;
+        goto error;
+    }
 
     /* Read the signature */
     len -= 4;
@@ -473,11 +515,17 @@ agent_sign(LIBSSH2_SESSION *session, unsigned char **sig, size_t *sig_len,
     memcpy(*sig, s, *sig_len);
 
   error:
+
+    if(method_name)
+        LIBSSH2_FREE(session, method_name);
+
     LIBSSH2_FREE(session, transctx->request);
     transctx->request = NULL;
 
     LIBSSH2_FREE(session, transctx->response);
     transctx->response = NULL;
+
+    transctx->state = agent_NB_state_init;
 
     return _libssh2_error(session, rc, "agent sign failure");
 }
@@ -541,7 +589,7 @@ agent_list_identities(LIBSSH2_AGENT *agent)
 
     while(num_identities--) {
         struct agent_publickey *identity;
-        ssize_t comment_len;
+        size_t comment_len;
 
         /* Read the length of the blob */
         len -= 4;
@@ -586,14 +634,14 @@ agent_list_identities(LIBSSH2_AGENT *agent)
         comment_len = _libssh2_ntohu32(s);
         s += 4;
 
-        /* Read the comment */
-        len -= comment_len;
-        if(len < 0) {
+        if(comment_len > (size_t)len) {
             rc = LIBSSH2_ERROR_AGENT_PROTOCOL;
             LIBSSH2_FREE(agent->session, identity->external.blob);
             LIBSSH2_FREE(agent->session, identity);
             goto error;
         }
+        /* Read the comment */
+        len -= comment_len;
 
         identity->external.comment = LIBSSH2_ALLOC(agent->session,
                                                    comment_len + 1);
@@ -781,6 +829,57 @@ libssh2_agent_userauth(LIBSSH2_AGENT *agent,
                                              identity->blob_len,
                                              agent_sign,
                                              &abstract));
+    return rc;
+}
+
+/*
+ * libssh2_agent_sign()
+ *
+ * Sign a payload using a system-installed ssh-agent.
+ *
+ * Returns 0 if succeeded, or a negative value for error.
+ */
+LIBSSH2_API int
+libssh2_agent_sign(LIBSSH2_AGENT *agent,
+                   struct libssh2_agent_publickey *identity,
+                   unsigned char **sig,
+                   size_t *s_len,
+                   unsigned char *data,
+                   size_t d_len,
+                   const char *method,
+                   u_int method_len)
+{
+    void *abstract = agent;
+    int rc;
+    uint32_t methodLen;
+
+    if(agent->session->userauth_pblc_state == libssh2_NB_state_idle) {
+        memset(&agent->transctx, 0, sizeof agent->transctx);
+        agent->identity = identity->node;
+    }
+
+    if(identity->blob_len < sizeof(uint32_t)) {
+        return LIBSSH2_ERROR_BUFFER_TOO_SMALL;
+    }
+
+    methodLen = _libssh2_ntohu32(identity->blob);
+
+    if(identity->blob_len < sizeof(uint32_t) + methodLen) {
+        return LIBSSH2_ERROR_BUFFER_TOO_SMALL;
+    }
+
+    agent->session->userauth_pblc_method_len = method_len;
+    agent->session->userauth_pblc_method = LIBSSH2_ALLOC(agent->session,
+                                                         method_len);
+
+    memcpy(agent->session->userauth_pblc_method, method, methodLen);
+
+    rc = agent_sign(agent->session, sig, s_len, data, d_len, &abstract);
+
+    LIBSSH2_FREE(agent->session, agent->session->userauth_pblc_method);
+    agent->session->userauth_pblc_method = NULL;
+    agent->session->userauth_pblc_method_len = 0;
+
     return rc;
 }
 

@@ -1225,6 +1225,51 @@ libssh2_userauth_hostbased_fromfile_ex(LIBSSH2_SESSION *session,
     return rc;
 }
 
+size_t plain_method(char *method, size_t method_len)
+{
+    if(!strncmp("ssh-rsa-cert-v01@openssh.com",
+                method,
+                method_len)) {
+        return 7;
+    }
+
+    if(!strncmp("ecdsa-sha2-nistp256-cert-v01@openssh.com",
+                method,
+                method_len) ||
+       !strncmp("ecdsa-sha2-nistp384-cert-v01@openssh.com",
+                method,
+                method_len) ||
+       !strncmp("ecdsa-sha2-nistp521-cert-v01@openssh.com",
+                method,
+                method_len)) {
+        return 19;
+    }
+
+    if(!strncmp("ssh-ed25519-cert-v01@openssh.com",
+                method,
+                method_len)) {
+        return 11;
+    }
+
+    if(!strncmp("sk-ecdsa-sha2-nistp256-cert-v01@openssh.com",
+                method,
+                method_len)) {
+        const char *new_method = "sk-ecdsa-sha2-nistp256@openssh.com";
+        memcpy(method, new_method, strlen(new_method));
+        return strlen(new_method);
+    }
+
+    if(!strncmp("sk-ssh-ed25519-cert-v01@openssh.com",
+                method,
+                method_len)) {
+        const char *new_method = "sk-ssh-ed25519@openssh.com";
+        memcpy(method, new_method, strlen(new_method));
+        return strlen(new_method);
+    }
+
+    return method_len;
+}
+
 static int plain_method_len(const char *method, size_t method_len)
 {
     if(!strncmp("ecdsa-sha2-nistp256-cert-v01@openssh.com",
