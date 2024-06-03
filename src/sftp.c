@@ -2885,13 +2885,22 @@ static int sftp_rename(LIBSSH2_SFTP *sftp, const char *source_filename,
     LIBSSH2_SESSION *session = channel->session;
     size_t data_len = 0;
     int retcode;
-    uint32_t packet_len =
-        source_filename_len + dest_filename_len + 17 +
-        (sftp->version >= 5 ? 4 : 0);
-    /* packet_len(4) + packet_type(1) + request_id(4) +
-       source_filename_len(4) + dest_filename_len(4) + flags(4){SFTP5+) */
+    int posix = flags & LIBSSH2_SFTP_RENAME_POSIX;
+    uint32_t packet_len;
     unsigned char *data = NULL;
     ssize_t rc;
+    if(posix) {
+        packet_len = source_filename_len + dest_filename_len + 45;
+         /* packet_len(4) + packet_type(1) + request_id(4) +
+            "posix-rename@openssh.com"(24+4) +               
+            source_filename_len(4) + dest_filename_len(4) */ 
+    } else {
+        /* packet_len(4) + packet_type(1) + request_id(4) +
+           source_filename_len(4) + dest_filename_len(4) + 
+           flags(4){SFTP5+) */
+        packet_len = source_filename_len + dest_filename_len + 17 +
+                     (sftp->version >= 5 ? 4 : 0);
+    }
 
     if(sftp->rename_state == libssh2_NB_state_idle) {
         sftp->last_errno = LIBSSH2_FX_OK;
@@ -2912,14 +2921,17 @@ static int sftp_rename(LIBSSH2_SFTP *sftp, const char *source_filename,
         }
 
         _libssh2_store_u32(&sftp->rename_s, packet_len - 4);
-        *(sftp->rename_s++) = SSH_FXP_RENAME;
+        *(sftp->rename_s++) = posix ? SSH_FXP_EXTENDED : SSH_FXP_RENAME;
         sftp->rename_request_id = sftp->request_id++;
         _libssh2_store_u32(&sftp->rename_s, sftp->rename_request_id);
+        if(posix) {
+          _libssh2_store_str(&sftp->rename_s, "posix-rename@openssh.com", 24);
+        }
         _libssh2_store_str(&sftp->rename_s, source_filename,
                            source_filename_len);
         _libssh2_store_str(&sftp->rename_s, dest_filename, dest_filename_len);
 
-        if(sftp->version >= 5)
+        if(sftp->version >= 5 && !posix)
             _libssh2_store_u32(&sftp->rename_s, (uint32_t)flags);
 
         sftp->rename_state = libssh2_NB_state_created;

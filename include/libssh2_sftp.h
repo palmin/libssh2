@@ -70,6 +70,8 @@ typedef struct _LIBSSH2_SFTP_STATVFS        LIBSSH2_SFTP_STATVFS;
 #define LIBSSH2_SFTP_RENAME_OVERWRITE   0x00000001
 #define LIBSSH2_SFTP_RENAME_ATOMIC      0x00000002
 #define LIBSSH2_SFTP_RENAME_NATIVE      0x00000004
+#define LIBSSH2_SFTP_RENAME_POSIX       0x00000008 /* uses sftp posix-rename@openssh.com 
+                                                      extension */
 
 /* Flags for stat_ex() */
 #define LIBSSH2_SFTP_STAT               0
