@@ -229,7 +229,7 @@ LIBSSH2_API LIBSSH2_CHANNEL *libssh2_sftp_get_channel(LIBSSH2_SFTP *sftp);
 
 /* Check for SFTP extensions */
 #define LIBSSH2_SFTP_EXTENSION_FLAG_POSIX_RENAME  1L
-LIBSSH2_API int libssh2_sftp_supported_extension(LIBSSH2_SFTP* sftp, int flag); 
+LIBSSH2_API int libssh2_sftp_supported_extension(LIBSSH2_SFTP* sftp, long flag); 
 
 /* File / Directory Ops */
 LIBSSH2_API LIBSSH2_SFTP_HANDLE *

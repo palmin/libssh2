@@ -803,7 +803,7 @@ static void register_sftp_extension(LIBSSH2_SFTP* sftp, unsigned char *name, siz
     }                                        
 }
 
-int libssh2_sftp_supported_extension(LIBSSH2_SFTP* sftp, int flag) {
+int libssh2_sftp_supported_extension(LIBSSH2_SFTP* sftp, long flag) {
     if(!sftp) return LIBSSH2_ERROR_BAD_USE;
 
     if(flag == LIBSSH2_SFTP_EXTENSION_FLAG_POSIX_RENAME) {
