@@ -792,6 +792,28 @@ LIBSSH2_CHANNEL_CLOSE_FUNC(libssh2_sftp_dtor)
     LIBSSH2_FREE(session, sftp);
 }
 
+/* called during sftp_init when receiving SSH_FXP_VERSION with extension name and data,
+   that need to be copied if kept. */
+static void register_sftp_extension(LIBSSH2_SFTP* sftp, unsigned char *name, size_t name_len, 
+                                    unsigned char *data, size_t data_len) {
+    if(name_len == 24 && memcmp(name, "posix-rename@openssh.com", 24) == 0 &&
+       data_len == 1 && data[0] == '1') {
+
+        sftp->posix_rename_extension = 1;
+    }                                        
+}
+
+int libssh2_sftp_supported_extension(LIBSSH2_SFTP* sftp, int flag) {
+    if(!sftp) return LIBSSH2_ERROR_BAD_USE;
+
+    if(flag == LIBSSH2_SFTP_EXTENSION_FLAG_POSIX_RENAME) {
+        return sftp->posix_rename_extension;
+    }
+
+    /* unknown flag */
+    return LIBSSH2_ERROR_BAD_USE;
+}
+
 /* sftp_init
  * Startup an SFTP session
  */
@@ -988,20 +1010,24 @@ static LIBSSH2_SFTP *sftp_init(LIBSSH2_SESSION *session)
                    sftp_handle->version));
     while(buf.dataptr < endp) {
         unsigned char *extname, *extdata;
+        size_t name_len, data_len;
 
-        if(_libssh2_get_string(&buf, &extname, NULL)) {
+        if(_libssh2_get_string(&buf, &extname, &name_len)) {
             LIBSSH2_FREE(session, data);
             _libssh2_error(session, LIBSSH2_ERROR_BUFFER_TOO_SMALL,
                            "Data too short when extracting extname");
             goto sftp_init_error;
         }
 
-        if(_libssh2_get_string(&buf, &extdata, NULL)) {
+        if(_libssh2_get_string(&buf, &extdata, &data_len)) {
             LIBSSH2_FREE(session, data);
             _libssh2_error(session, LIBSSH2_ERROR_BUFFER_TOO_SMALL,
                            "Data too short when extracting extdata");
             goto sftp_init_error;
         }
+
+        register_sftp_extension(sftp_handle, extname, name_len, 
+                                extdata, data_len);
     }
     LIBSSH2_FREE(session, data);
 

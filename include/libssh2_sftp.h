@@ -227,6 +227,10 @@ LIBSSH2_API int libssh2_sftp_shutdown(LIBSSH2_SFTP *sftp);
 LIBSSH2_API unsigned long libssh2_sftp_last_error(LIBSSH2_SFTP *sftp);
 LIBSSH2_API LIBSSH2_CHANNEL *libssh2_sftp_get_channel(LIBSSH2_SFTP *sftp);
 
+/* Check for SFTP extensions */
+#define LIBSSH2_SFTP_EXTENSION_FLAG_POSIX_RENAME  1L
+LIBSSH2_API int libssh2_sftp_supported_extension(LIBSSH2_SFTP* sftp, int flag); 
+
 /* File / Directory Ops */
 LIBSSH2_API LIBSSH2_SFTP_HANDLE *
 libssh2_sftp_open_ex(LIBSSH2_SFTP *sftp,

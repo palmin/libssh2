@@ -138,6 +138,7 @@ struct _LIBSSH2_SFTP
     LIBSSH2_CHANNEL *channel;
 
     uint32_t request_id, version;
+    uint32_t posix_rename_extension;
 
     struct list_head packets;
 
