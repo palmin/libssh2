@@ -95,6 +95,32 @@ LIBSSH2_REALLOC_FUNC(libssh2_default_realloc)
     return realloc(ptr, count);
 }
 
+static int collect_remote_banner(LIBSSH2_SESSION * session,
+                                 size_t banner_len) {
+    /* determine size for existing and more banner and allocate */                                
+    unsigned char* new_banner;
+    size_t total_len, existing_len = 0;
+    if(session->remote.banner) existing_len = strlen((char const*)session->remote.banner);
+    total_len = existing_len + banner_len + 1;
+
+    new_banner = LIBSSH2_ALLOC(session, total_len);
+    if(!new_banner) {
+      return _libssh2_error(session, LIBSSH2_ERROR_ALLOC,
+                            "Error allocating space for remote banner");
+    }
+
+    /* combine existing and more banner into a single memory chunk */
+    if(existing_len > 0) memcpy(new_banner, session->remote.banner, existing_len);
+    memcpy(new_banner + existing_len, session->banner_TxRx_banner, banner_len);
+    new_banner[existing_len + banner_len] = '\0';
+
+    if(session->remote.banner)
+        LIBSSH2_FREE(session, session->remote.banner);
+    session->remote.banner = new_banner;
+
+    return LIBSSH2_ERROR_NONE;
+}
+
 /*
  * banner_receive
  *
@@ -107,10 +133,15 @@ static int
 banner_receive(LIBSSH2_SESSION * session)
 {
     ssize_t ret;
+    int rc;
     size_t banner_len;
 
     if(session->banner_TxRx_state == libssh2_NB_state_idle) {
         banner_len = 0;
+
+        if(session->remote.banner)
+          LIBSSH2_FREE(session, session->remote.banner);
+        session->remote.banner = NULL;
 
         session->banner_TxRx_state = libssh2_NB_state_created;
     }
@@ -118,9 +149,7 @@ banner_receive(LIBSSH2_SESSION * session)
         banner_len = session->banner_TxRx_total_send;
     }
 
-    while((banner_len < sizeof(session->banner_TxRx_banner)) &&
-          ((banner_len == 0)
-           || (session->banner_TxRx_banner[banner_len - 1] != '\n'))) {
+    while(1) {
         char c = '\0';
 
         /* no incoming block yet! */
@@ -136,7 +165,8 @@ banner_receive(LIBSSH2_SESSION * session)
         }
         else
             _libssh2_debug((session, LIBSSH2_TRACE_SOCKET,
-                           "Recved %ld bytes banner", (long)ret));
+                           "Recved %ld bytes banner for a total %ld", 
+                           (long)ret, (long)(1 + banner_len)));
 
         if(ret < 0) {
             if(ret == -EAGAIN) {
@@ -157,7 +187,9 @@ banner_receive(LIBSSH2_SESSION * session)
             return LIBSSH2_ERROR_SOCKET_DISCONNECT;
         }
 
-        if((c == '\r' || c == '\n') && banner_len == 0) {
+        /* Ignore leading newline characters */
+        if((c == '\r' || c == '\n') && banner_len == 0 && 
+            !session->remote.banner) {
             continue;
         }
 
@@ -168,12 +200,27 @@ banner_receive(LIBSSH2_SESSION * session)
             return LIBSSH2_ERROR_BANNER_RECV;
         }
 
+        /* make sure we don't overflow banner_TxRx_banner */
+        if(banner_len >= sizeof(session->banner_TxRx_banner)) {
+            rc = collect_remote_banner(session, banner_len);
+            if(rc < 0) return rc;
+            banner_len = 0;
+        }
+
         session->banner_TxRx_banner[banner_len++] = c;
+
+        if(c == '\n') break;
     }
 
+    rc = collect_remote_banner(session, banner_len);
+    if(rc < 0) return rc;
+    banner_len = strlen((char const*)session->remote.banner);
+
+    /* Ignore trailing newline characters */
     while(banner_len &&
-          ((session->banner_TxRx_banner[banner_len - 1] == '\n') ||
-           (session->banner_TxRx_banner[banner_len - 1] == '\r'))) {
+          ((session->remote.banner[banner_len - 1] == '\n') ||
+           (session->remote.banner[banner_len - 1] == '\r'))) {
+        session->remote.banner[banner_len - 1] = '\0';
         banner_len--;
     }
 
@@ -184,16 +231,6 @@ banner_receive(LIBSSH2_SESSION * session)
     if(!banner_len)
         return LIBSSH2_ERROR_BANNER_RECV;
 
-    if(session->remote.banner)
-        LIBSSH2_FREE(session, session->remote.banner);
-
-    session->remote.banner = LIBSSH2_ALLOC(session, banner_len + 1);
-    if(!session->remote.banner) {
-        return _libssh2_error(session, LIBSSH2_ERROR_ALLOC,
-                              "Error allocating space for remote banner");
-    }
-    memcpy(session->remote.banner, session->banner_TxRx_banner, banner_len);
-    session->remote.banner[banner_len] = '\0';
     _libssh2_debug((session, LIBSSH2_TRACE_TRANS, "Received Banner: %s",
                    session->remote.banner));
     return LIBSSH2_ERROR_NONE;
@@ -770,6 +807,7 @@ session_startup(LIBSSH2_SESSION *session, libssh2_socket_t sock)
 
     if(session->startup_state == libssh2_NB_state_sent1) {
         rc = _libssh2_kex_exchange(session, 0, &session->startup_key_state);
+        fprintf(stderr, "_libssh2_kex_exchange -> %d\n", rc);
         if(rc == LIBSSH2_ERROR_EAGAIN)
             return rc;
         else if(rc)
