@@ -149,7 +149,7 @@ banner_receive(LIBSSH2_SESSION * session)
         banner_len = session->banner_TxRx_total_send;
     }
 
-    while(1) {
+    for(;;) {
         char c = '\0';
 
         /* no incoming block yet! */
