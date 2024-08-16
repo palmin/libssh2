@@ -668,6 +668,7 @@ struct _LIBSSH2_PUBLICKEY
 };
 
 #define LIBSSH2_SCP_RESPONSE_BUFLEN     256
+#define LIBSSH2_SERVER_BANNER_MAX_LINE_LEN   8192
 
 struct flags {
     int sigpipe;     /* LIBSSH2_FLAG_SIGPIPE */

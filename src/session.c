@@ -103,6 +103,11 @@ static int collect_remote_banner(LIBSSH2_SESSION * session,
     if(session->remote.banner) existing_len = strlen((char const*)session->remote.banner);
     total_len = existing_len + banner_len + 1;
 
+    if(total_len > LIBSSH2_SERVER_BANNER_MAX_LINE_LEN) {
+        return _libssh2_error(session, LIBSSH2_ERROR_BANNER_RECV,
+                              "Remote banner line too long");
+    }
+
     new_banner = LIBSSH2_ALLOC(session, total_len);
     if(!new_banner) {
       return _libssh2_error(session, LIBSSH2_ERROR_ALLOC,
