@@ -23,6 +23,7 @@ CSOURCES =              \
   scp.c                 \
   session.c             \
   sftp.c                \
+  sign.c                \
   transport.c           \
   userauth.c            \
   userauth_kbd_packet.c \
