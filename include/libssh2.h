@@ -1095,6 +1095,24 @@ LIBSSH2_API
 libssh2_crypto_engine_t libssh2_crypto_engine(void);
 
 /* Signing API */
+/*
+ * Signs data with a private key and returns a complete signature blob
+ * in the same format as SSH agent would return.
+ *
+ * The signature blob format:
+ *   4 bytes - Length of algorithm name
+ *   n bytes - Algorithm name string
+ *   4 bytes - Length of signature
+ *   m bytes - Signature data
+ *
+ * For RSA keys, the flags parameter controls the signing method:
+ *   0x00 - Use ssh-rsa (default)
+ *   0x02 - Use rsa-sha2-256
+ *   0x04 - Use rsa-sha2-512
+ *
+ * For non-RSA keys, the flags parameter is ignored.
+ * The caller must free the signature with libssh2_free().
+ */
 LIBSSH2_API int
 libssh2_sign_with_keydata(LIBSSH2_SESSION *session,
                           const char *keydata,
@@ -1103,7 +1121,8 @@ libssh2_sign_with_keydata(LIBSSH2_SESSION *session,
                           int datavec,
                           const struct iovec data[],
                           unsigned char **signature,
-                          size_t *signature_len);
+                          size_t *signature_len,
+                          unsigned int flags);
 
 #define HAVE_LIBSSH2_KNOWNHOST_API 0x010101 /* since 1.1.1 */
 #define HAVE_LIBSSH2_VERSION_API   0x010100 /* libssh2_version since 1.1 */
