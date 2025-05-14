@@ -603,7 +603,8 @@ error:
 
     transctx->state = agent_NB_state_init;
 
-    return _libssh2_error(session, rc, "agent sign failure");
+    if(rc) _libssh2_error(session, rc, "agent sign failure");
+    return rc;
 }
 
 static int
@@ -737,8 +738,9 @@ error:
     LIBSSH2_FREE(agent->session, transctx->response);
     transctx->response = NULL;
 
-    return _libssh2_error(agent->session, rc,
+    if(rc) _libssh2_error(agent->session, rc,
                           "agent list id failed");
+    return rc;
 }
 
 static void
