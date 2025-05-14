@@ -148,37 +148,31 @@ libssh2_sign_with_keydata(LIBSSH2_SESSION *session,
             /* Use rsa-sha2-512 */
             selected_method = (unsigned char const*)"rsa-sha2-512";
             selected_method_len = 12;
-
-            /* Set the signing method for the session */
-            if(session->userauth_pblc_method) {
-                LIBSSH2_FREE(session, session->userauth_pblc_method);
-                session->userauth_pblc_method = NULL;
-                session->userauth_pblc_method_len = 0;
-            }
-            session->userauth_pblc_method = LIBSSH2_ALLOC(session, selected_method_len);
-            if(session->userauth_pblc_method) {
-                memcpy(session->userauth_pblc_method, selected_method, selected_method_len);
-                session->userauth_pblc_method_len = selected_method_len;
-            }
         }
         else if(flags & 0x02) {
             /* Use rsa-sha2-256 */
             selected_method = (unsigned char const*)"rsa-sha2-256";
             selected_method_len = 12;
-
-            /* Set the signing method for the session */
-            if(session->userauth_pblc_method) {
-                LIBSSH2_FREE(session, session->userauth_pblc_method);
-                session->userauth_pblc_method = NULL;
-                session->userauth_pblc_method_len = 0;
-            }
-            session->userauth_pblc_method = LIBSSH2_ALLOC(session, selected_method_len);
-            if(session->userauth_pblc_method) {
-                memcpy(session->userauth_pblc_method, selected_method, selected_method_len);
-                session->userauth_pblc_method_len = selected_method_len;
-            }
         }
     }
+
+    /* Set the signing method for the session */
+    if(session->userauth_pblc_method) {
+        LIBSSH2_FREE(session, session->userauth_pblc_method);
+        session->userauth_pblc_method = NULL;
+        session->userauth_pblc_method_len = 0;
+    }
+
+    session->userauth_pblc_method = LIBSSH2_ALLOC(session, selected_method_len);
+    if(session->userauth_pblc_method) {
+        memcpy(session->userauth_pblc_method, selected_method, selected_method_len);
+        session->userauth_pblc_method_len = selected_method_len;
+    } else {
+        LIBSSH2_FREE(session, methodname);
+        LIBSSH2_FREE(session, pubkeydata);
+        return _libssh2_error(session, LIBSSH2_ERROR_ALLOC,
+                              "Unable to allocate space for selected agent method");
+}
 
     /* Initialize the private key */
     rc = method->initPEMFromMemory(session, keydata, keydata_len,
