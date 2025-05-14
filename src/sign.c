@@ -119,23 +119,7 @@ libssh2_sign_with_keydata(LIBSSH2_SESSION *session,
                              "Unable to extract public key from private key data");
     }
 
-    /* Find the appropriate method based on key type */
-    for(rc = 0; hostkey_methods[rc]; rc++) {
-        if(methodname_len == strlen(hostkey_methods[rc]->name) &&
-           memcmp(methodname, hostkey_methods[rc]->name, methodname_len) == 0) {
-            method = hostkey_methods[rc];
-            break;
-        }
-    }
-
-    if(!method) {
-        LIBSSH2_FREE(session, methodname);
-        LIBSSH2_FREE(session, pubkeydata);
-        return _libssh2_error(session, LIBSSH2_ERROR_METHOD_NONE,
-                             "No suitable private key method found");
-    }
-
-     /* Non-RSA key, use the original method */
+    /* Non-RSA key or no flag; use the original method */
      selected_method = methodname;
      selected_method_len = methodname_len;
 
@@ -154,6 +138,28 @@ libssh2_sign_with_keydata(LIBSSH2_SESSION *session,
             selected_method = (unsigned char const*)"rsa-sha2-256";
             selected_method_len = 12;
         }
+    }
+
+    _libssh2_debug((session, LIBSSH2_TRACE_PUBLICKEY,
+                       "selected_method = %s",
+                       selected_method));
+
+
+    /* Find the appropriate method based on key type */
+    for(rc = 0; hostkey_methods[rc]; rc++) {
+        if(selected_method_len == strlen(hostkey_methods[rc]->name) &&
+           memcmp(selected_method, hostkey_methods[rc]->name,
+                  selected_method_len) == 0) {
+            method = hostkey_methods[rc];
+            break;
+        }
+    }
+
+    if(!method) {
+        LIBSSH2_FREE(session, methodname);
+        LIBSSH2_FREE(session, pubkeydata);
+        return _libssh2_error(session, LIBSSH2_ERROR_METHOD_NONE,
+                             "No suitable private key method found");
     }
 
     /* Set the signing method for the session */
