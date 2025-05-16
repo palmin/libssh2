@@ -2110,6 +2110,65 @@ libssh2_userauth_publickey(LIBSSH2_SESSION *session,
     return rc;
 }
 
+/*
+ * libssh2_extract_publickey_from_privatekey
+ *
+ * Extract a public key from a private key.
+ *
+ * Parameters:
+ *   session      - The SSH session
+ *   privatekeydata - Private key data buffer
+ *   privatekeydata_len - Length of private key data
+ *   passphrase   - Passphrase for encrypted private key or NULL
+ *   publickeydata - Output buffer for the public key (allocated by the function)
+ *   publickeydata_len - Length of the public key data
+ *   keytype      - Output buffer for the key type (allocated by the function)
+ *   keytype_len  - Length of the key type
+ *
+ * Returns:
+ *   0 on success, negative number on failure
+ */
+LIBSSH2_API int
+libssh2_extract_publickey_from_privatekey(LIBSSH2_SESSION *session,
+                                         const char *privatekeydata,
+                                         size_t privatekeydata_len,
+                                         const char *passphrase,
+                                         unsigned char **publickeydata,
+                                         size_t *publickeydata_len,
+                                         unsigned char **keytype,
+                                         size_t *keytype_len)
+{
+    int rc;
+    
+    if(!session || !privatekeydata || !publickeydata || !publickeydata_len ||
+       !keytype || !keytype_len) {
+        return _libssh2_error(session, LIBSSH2_ERROR_BAD_USE,
+                             "Invalid parameters for extracting public key");
+    }
+    
+    /* Initialize the output parameters */
+    *publickeydata = NULL;
+    *publickeydata_len = 0;
+    *keytype = NULL;
+    *keytype_len = 0;
+    
+    /* If no passphrase was provided, use an empty string */
+    if(!passphrase)
+        passphrase = "";
+    
+    /* Use the existing internal function to extract public key from private key */
+    rc = _libssh2_pub_priv_keyfilememory(session, keytype, keytype_len,
+                                        publickeydata, publickeydata_len,
+                                        privatekeydata, privatekeydata_len,
+                                        passphrase);
+    
+    if(rc) {
+        return _libssh2_error(session, LIBSSH2_ERROR_FILE,
+                             "Unable to extract public key from private key data");
+    }
+    
+    return 0;
+}
 
 
 /*

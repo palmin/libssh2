@@ -1124,6 +1124,36 @@ libssh2_sign_with_keydata(LIBSSH2_SESSION *session,
                           size_t *signature_len,
                           unsigned int flags);
 
+/*
+ * Extract a public key from a private key.
+ *
+ * Parameters:
+ *   session      - The SSH session
+ *   privatekeydata - Private key data buffer
+ *   privatekeydata_len - Length of private key data
+ *   passphrase   - Passphrase for encrypted private key or NULL
+ *   publickeydata - Output buffer for the public key (allocated by the function)
+ *   publickeydata_len - Length of the public key data
+ *   keytype      - Output buffer for the key type (allocated by the function)
+ *   keytype_len  - Length of the key type
+ *
+ * Returns:
+ *   0 on success, negative number on failure
+ *
+ * Note:
+ *   The caller must free the allocated memory for publickeydata and keytype
+ *   using libssh2_free() when they are no longer needed.
+ */
+LIBSSH2_API int
+libssh2_extract_publickey_from_privatekey(LIBSSH2_SESSION *session,
+                                         const char *privatekeydata,
+                                         size_t privatekeydata_len,
+                                         const char *passphrase,
+                                         unsigned char **publickeydata,
+                                         size_t *publickeydata_len,
+                                         unsigned char **keytype,
+                                         size_t *keytype_len);
+
 #define HAVE_LIBSSH2_KNOWNHOST_API 0x010101 /* since 1.1.1 */
 #define HAVE_LIBSSH2_VERSION_API   0x010100 /* libssh2_version since 1.1 */
 #define HAVE_LIBSSH2_CRYPTOENGINE_API 0x011100 /* libssh2_crypto_engine
