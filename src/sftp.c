@@ -942,8 +942,34 @@ static LIBSSH2_SFTP *sftp_init(LIBSSH2_SESSION *session)
         goto sftp_init_error;
     }
     else if(rc) {
-        _libssh2_error(session, (int)rc,
-                       "Timeout waiting for response from SFTP subsystem");
+        /* check if the packet header bytes look like ASCII text, which
+           indicates the server sent output before the SFTP subsystem */
+        const char errmsg[] = "Failed to start SFTP subsystem. "
+                              "Server output: ";
+        char errbuf[sizeof(errmsg) + sizeof(sftp_handle->packet_header)];
+        size_t len = 0;
+        size_t i;
+
+        memcpy(errbuf, errmsg, sizeof(errmsg) - 1);
+        len = sizeof(errmsg) - 1;
+
+        for(i = 0; i < sizeof(sftp_handle->packet_header); i++) {
+            unsigned char c = sftp_handle->packet_header[i];
+            if(c >= 0x20 && c < 0x7f)
+                errbuf[len++] = (char)c;
+            else if(c == '\n' || c == '\r')
+                errbuf[len++] = ' ';
+            else
+                break;
+        }
+        errbuf[len] = '\0';
+
+        /* if fewer than 4 bytes were text, drop the server output part */
+        if(i < 4)
+            strcpy(errbuf, "Failed to start SFTP subsystem");
+
+        _libssh2_error_flags(session, (int)rc, errbuf,
+                             LIBSSH2_ERR_FLAG_DUP);
         goto sftp_init_error;
     }
 
