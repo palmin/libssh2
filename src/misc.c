@@ -50,8 +50,11 @@
 
 #ifdef _WIN32
 /* Force parameter type. */
-#define recv(s, b, l, f)  recv((s), (b), (int)(l), (f))
-#define send(s, b, l, f)  send((s), (b), (int)(l), (f))
+#define libssh2_recv(s, b, l, f)  recv((s), (b), (int)(l), (f))
+#define libssh2_send(s, b, l, f)  send((s), (b), (int)(l), (f))
+#else
+#define libssh2_recv  recv
+#define libssh2_send  send
 #endif
 
 /* snprintf not in Visual Studio CRT and _snprintf dangerously incompatible.
@@ -88,7 +91,7 @@ int _libssh2_error_flags(LIBSSH2_SESSION* session, int errcode,
     }
 
     if(session->err_flags & LIBSSH2_ERR_FLAG_DUP)
-        LIBSSH2_FREE(session, (char *)session->err_msg);
+        LIBSSH2_FREE(session, (char *)LIBSSH2_UNCONST(session->err_msg));
 
     session->err_code = errcode;
     session->err_flags = 0;
@@ -159,7 +162,7 @@ _libssh2_recv(libssh2_socket_t sock, void *buffer, size_t length,
 
     (void)abstract;
 
-    rc = recv(sock, buffer, length, flags);
+    rc = libssh2_recv(sock, buffer, length, flags);
     if(rc < 0) {
         int err;
 #ifdef _WIN32
@@ -198,7 +201,7 @@ _libssh2_send(libssh2_socket_t sock, const void *buffer, size_t length,
 
     (void)abstract;
 
-    rc = send(sock, buffer, length, flags);
+    rc = libssh2_send(sock, buffer, length, flags);
     if(rc < 0) {
         int err;
 #ifdef _WIN32
@@ -300,6 +303,28 @@ int _libssh2_store_str(unsigned char **buf, const char *str, size_t len)
     return len_stored == len;
 }
 
+/* _libssh2_store_str
+ */
+int _libssh2_store_hybrid_str(unsigned char **buf, const char *str_1,
+                        size_t len_1, const char *str_2, size_t len_2)
+{
+    uint32_t len_stored = (uint32_t)len_1 + (uint32_t)len_2;
+
+    _libssh2_store_u32(buf, len_stored);
+    if(len_1) {
+        memcpy(*buf, str_1, len_1);
+        *buf += len_1;
+    }
+
+    if(len_2) {
+        memcpy(*buf, str_2, len_2);
+        *buf += len_2;
+    }
+
+    assert(len_stored == len_1 + len_2);
+    return len_stored == len_1 + len_2;
+}
+
 /* _libssh2_store_bignum2_bytes
  */
 int _libssh2_store_bignum2_bytes(unsigned char **buf,
@@ -353,9 +378,10 @@ static const short base64_reverse_table[256] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 };
 
-/* libssh2_base64_decode
+#ifndef LIBSSH2_NO_DEPRECATED
+/* libssh2_base64_decode (DEPRECATED, DO NOT USE!)
  *
- * Legacy public function. DEPRECATED.
+ * Legacy public function.
  */
 LIBSSH2_API int
 libssh2_base64_decode(LIBSSH2_SESSION *session, char **data,
@@ -372,6 +398,7 @@ libssh2_base64_decode(LIBSSH2_SESSION *session, char **data,
 
     return rc;
 }
+#endif
 
 /* _libssh2_base64_decode
  *
@@ -384,9 +411,10 @@ int _libssh2_base64_decode(LIBSSH2_SESSION *session,
     unsigned char *d;
     const char *s;
     short v;
-    ssize_t i = 0, len = 0;
+    size_t i = 0, len = 0;
 
-    *data = LIBSSH2_ALLOC(session, ((src_len / 4) * 3) + 1);
+    *datalen = 0;
+    *data = LIBSSH2_ALLOC(session, src_len);
     d = (unsigned char *) *data;
     if(!d) {
         return _libssh2_error(session, LIBSSH2_ERROR_ALLOC,
@@ -455,6 +483,9 @@ size_t _libssh2_base64_encode(LIBSSH2_SESSION *session,
 
     if(insize == 0)
         insize = strlen(indata);
+
+    if(insize == 0)
+        return 0; /* nothing to encode */
 
     base64data = output = LIBSSH2_ALLOC(session, insize * 4 / 3 + 4);
     if(!output)
@@ -781,24 +812,6 @@ void _libssh2_xor_data(unsigned char *output,
 
     for(i = 0; i < length; i++)
         *output++ = *input1++ ^ *input2++;
-}
-
-/* Increments an AES CTR buffer to prepare it for use with the
-   next AES block. */
-void _libssh2_aes_ctr_increment(unsigned char *ctr,
-                                size_t length)
-{
-    unsigned char *pc;
-    unsigned int val, carry;
-
-    pc = ctr + length - 1;
-    carry = 1;
-
-    while(pc >= ctr) {
-        val = (unsigned int)*pc + carry;
-        *pc-- = val & 0xFF;
-        carry = val >> 8;
-    }
 }
 
 #ifdef LIBSSH2_MEMZERO

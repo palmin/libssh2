@@ -6,28 +6,29 @@
 #
 # Input variables:
 #
-# - `WOLFSSL_INCLUDE_DIR`:   The wolfSSL include directory.
-# - `WOLFSSL_LIBRARY`:       Path to `wolfssl` library.
+# - `WOLFSSL_INCLUDE_DIR`:  The wolfSSL include directory.
+# - `WOLFSSL_LIBRARY`:      Path to `wolfssl` library.
 #
-# Result variables:
+# Defines:
 #
-# - `WOLFSSL_FOUND`:         System has wolfSSL.
-# - `WOLFSSL_INCLUDE_DIRS`:  The wolfSSL include directories.
-# - `WOLFSSL_LIBRARIES`:     The wolfSSL library names.
-# - `WOLFSSL_LIBRARY_DIRS`:  The wolfSSL library directories.
-# - `WOLFSSL_CFLAGS`:        Required compiler flags.
-# - `WOLFSSL_VERSION`:       Version of wolfSSL.
+# - `WOLFSSL_FOUND`:        System has wolfSSL.
+# - `WOLFSSL_VERSION`:      Version of wolfSSL.
+# - `libssh2::wolfssl`:     wolfssl library target.
 
-if((UNIX OR VCPKG_TOOLCHAIN OR (MINGW AND NOT CMAKE_CROSSCOMPILING)) AND
+set(_wolfssl_pc_requires "wolfssl")
+
+if(LIBSSH2_USE_PKGCONFIG AND
    NOT DEFINED WOLFSSL_INCLUDE_DIR AND
    NOT DEFINED WOLFSSL_LIBRARY)
   find_package(PkgConfig QUIET)
-  pkg_check_modules(WOLFSSL "wolfssl")
+  pkg_check_modules(_wolfssl ${_wolfssl_pc_requires})
 endif()
 
-if(WOLFSSL_FOUND)
-  string(REPLACE ";" " " WOLFSSL_CFLAGS "${WOLFSSL_CFLAGS}")
-  message(STATUS "Found WolfSSL (via pkg-config): ${WOLFSSL_INCLUDE_DIRS} (found version \"${WOLFSSL_VERSION}\")")
+if(_wolfssl_FOUND)
+  set(WolfSSL_FOUND TRUE)
+  set(WOLFSSL_FOUND TRUE)
+  set(WOLFSSL_VERSION ${_wolfssl_VERSION})
+  message(STATUS "Found WolfSSL (via pkg-config): ${_wolfssl_INCLUDE_DIRS} (found version \"${WOLFSSL_VERSION}\")")
 else()
   find_path(WOLFSSL_INCLUDE_DIR NAMES "wolfssl/options.h")
   find_library(WOLFSSL_LIBRARY NAMES "wolfssl")
@@ -52,9 +53,29 @@ else()
   )
 
   if(WOLFSSL_FOUND)
-    set(WOLFSSL_INCLUDE_DIRS ${WOLFSSL_INCLUDE_DIR})
-    set(WOLFSSL_LIBRARIES    ${WOLFSSL_LIBRARY})
+    set(_wolfssl_INCLUDE_DIRS ${WOLFSSL_INCLUDE_DIR})
+    set(_wolfssl_LIBRARIES    ${WOLFSSL_LIBRARY})
   endif()
 
   mark_as_advanced(WOLFSSL_INCLUDE_DIR WOLFSSL_LIBRARY)
+endif()
+
+if(WOLFSSL_FOUND)
+  if(WIN32)
+    list(APPEND _wolfssl_LIBRARIES "crypt32")
+  endif()
+
+  if(CMAKE_VERSION VERSION_LESS 3.13)
+    link_directories(${_wolfssl_LIBRARY_DIRS})
+  endif()
+
+  if(NOT TARGET libssh2::wolfssl)
+    add_library(libssh2::wolfssl INTERFACE IMPORTED)
+    set_target_properties(libssh2::wolfssl PROPERTIES
+      INTERFACE_LIBSSH2_PC_MODULES "${_wolfssl_pc_requires}"
+      INTERFACE_COMPILE_OPTIONS "${_wolfssl_CFLAGS}"
+      INTERFACE_INCLUDE_DIRECTORIES "${_wolfssl_INCLUDE_DIRS}"
+      INTERFACE_LINK_DIRECTORIES "${_wolfssl_LIBRARY_DIRS}"
+      INTERFACE_LINK_LIBRARIES "${_wolfssl_LIBRARIES}")
+  endif()
 endif()

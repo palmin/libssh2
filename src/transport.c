@@ -134,7 +134,7 @@ decrypt(LIBSSH2_SESSION * session, unsigned char *source,
     /* if we get called with a len that isn't an even number of blocksizes
        we risk losing those extra bytes. AAD is an exception, since those first
        few bytes aren't encrypted so it throws off the rest of the count. */
-    if(!CRYPT_FLAG_L(session, PKTLEN_AAD))
+    if(!CRYPT_FLAG_R(session, PKTLEN_AAD))
         assert((len % blocksize) == 0);
 
     while(len > 0) {
@@ -149,7 +149,7 @@ decrypt(LIBSSH2_SESSION * session, unsigned char *source,
         /* If the last block would be less than a whole blocksize, combine it
            with the previous block to make it larger. This ensures that the
            whole MAC is included in a single decrypt call. */
-        if(CRYPT_FLAG_L(session, PKTLEN_AAD) && IS_LAST(firstlast)
+        if(CRYPT_FLAG_R(session, PKTLEN_AAD) && IS_LAST(firstlast)
            && (len < blocksize*2)) {
             decryptlen = len;
             lowerfirstlast = LAST_BLOCK;
@@ -240,6 +240,8 @@ fullpacket(LIBSSH2_SESSION * session, int encrypted /* 1 or 0 */ )
                 ssize_t decrypt_size;
                 unsigned char *decrypt_buffer;
                 int blocksize = session->remote.crypt->blocksize;
+
+                first_block[0] = 0;
 
                 rc = decrypt(session, p->payload + 4,
                              first_block, blocksize, FIRST_BLOCK);
@@ -381,6 +383,8 @@ int _libssh2_transport_read(LIBSSH2_SESSION * session)
     int firstlast = FIRST_BLOCK; /* if the first or last block to decrypt */
     unsigned int auth_len = 0; /* length of the authentication tag */
     const LIBSSH2_MAC_METHOD *remote_mac = NULL; /* The remote MAC, if used */
+
+    block[4] = 0;
 
     /* default clear the bit */
     session->socket_block_directions &= ~LIBSSH2_SESSION_BLOCK_INBOUND;
@@ -609,7 +613,7 @@ int _libssh2_transport_read(LIBSSH2_SESSION * session)
                        packet length field that we run MAC over */
                     p->packet_length = _libssh2_ntohu32(block);
                     total_num = 4 + p->packet_length +
-                    remote_mac->mac_len;
+                        remote_mac->mac_len;
                 }
                 else {
                     /* padding_length has not been authenticated yet, but it
@@ -624,7 +628,7 @@ int _libssh2_transport_read(LIBSSH2_SESSION * session)
                     /* total_num is the number of bytes following the initial
                        (5 bytes) packet length and padding length fields */
                     total_num = p->packet_length - 1 +
-                    (encrypted ? remote_mac->mac_len : 0);
+                        (encrypted && remote_mac ? remote_mac->mac_len : 0);
                 }
             }
             else {
@@ -1047,7 +1051,7 @@ int _libssh2_transport_send(LIBSSH2_SESSION *session,
     encrypted = (session->state & LIBSSH2_STATE_NEWKEYS) ? 1 : 0;
 
     if(encrypted && session->local.crypt &&
-        CRYPT_FLAG_R(session, REQUIRES_FULL_PACKET)) {
+        CRYPT_FLAG_L(session, REQUIRES_FULL_PACKET)) {
         auth_len = session->local.crypt->auth_len;
     }
     else {
@@ -1120,7 +1124,7 @@ int _libssh2_transport_send(LIBSSH2_SESSION *session,
     /* subtract 4 bytes of the packet_length field when padding AES-GCM
        or with ETM */
     crypt_offset = (etm || auth_len ||
-                    (encrypted && CRYPT_FLAG_R(session, PKTLEN_AAD)))
+                    (encrypted && CRYPT_FLAG_L(session, PKTLEN_AAD)))
                    ? 4 : 0;
     etm_crypt_offset = etm ? 4 : 0;
 
@@ -1238,7 +1242,7 @@ int _libssh2_transport_send(LIBSSH2_SESSION *session,
             /* Call crypt() one last time so it can be filled in with the
                MAC */
             if(CRYPT_FLAG_L(session, INTEGRATED_MAC)) {
-                int authlen = local_mac->mac_len;
+                int authlen = local_mac ? local_mac->mac_len : 0;
                 assert((size_t)total_length <=
                        packet_length + session->local.crypt->blocksize);
                 if(session->local.crypt->crypt(session,

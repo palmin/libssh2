@@ -40,19 +40,19 @@ include(CopyRuntimeDependencies)
 
 list(APPEND LIBSSH2_LIBS ${LIBSSH2_LIBS_SOCKET})
 
-transform_makefile_inc("Makefile.inc" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
-# Get 'DOCKER_TESTS', 'DOCKER_TESTS_STATIC', 'STANDALONE_TESTS', 'STANDALONE_TESTS_STATIC', 'SSHD_TESTS',
-# 'librunner_la_SOURCES' variables
+libssh2_transform_makefile_inc("Makefile.inc" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
+# Get DOCKER_TESTS, DOCKER_TESTS_STATIC, STANDALONE_TESTS, STANDALONE_TESTS_STATIC, SSHD_TESTS,
+# librunner_la_SOURCES, EXTRA_DIST variables
 include("${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
 list(APPEND DOCKER_TESTS ${DOCKER_TESTS_STATIC})
 list(APPEND STANDALONE_TESTS ${STANDALONE_TESTS_STATIC})
 
-if(CMAKE_COMPILER_IS_GNUCC)
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
   find_program(GCOV_PATH "gcov")
   if(GCOV_PATH)
     set(_gcov_cflags "-g" "--coverage")
-    if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0)
-      set(_gcov_cflags "${_gcov_cflags} -fprofile-abs-path")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
+      string(APPEND _gcov_cflags " -fprofile-abs-path")
     endif()
   endif()
 endif()
@@ -73,11 +73,10 @@ endif()
 add_library(runner STATIC ${librunner_la_SOURCES})
 target_compile_definitions(runner PRIVATE "${CRYPTO_BACKEND_DEFINE}")
 target_include_directories(runner PRIVATE
-  "${CMAKE_CURRENT_BINARY_DIR}/../src"
-  "../src"
-  "../include"
-  "${CRYPTO_BACKEND_INCLUDE_DIR}")
-target_link_libraries(runner PRIVATE libssh2)
+  "${PROJECT_BINARY_DIR}/src"
+  "${PROJECT_SOURCE_DIR}/src"
+  "${PROJECT_SOURCE_DIR}/include")
+target_link_libraries(runner PRIVATE libssh2 ${LIBSSH2_LIBS})
 
 foreach(_test IN LISTS DOCKER_TESTS STANDALONE_TESTS SSHD_TESTS)
   if(NOT ";${DOCKER_TESTS_STATIC};${STANDALONE_TESTS_STATIC};" MATCHES ";${_test};")
@@ -85,7 +84,7 @@ foreach(_test IN LISTS DOCKER_TESTS STANDALONE_TESTS SSHD_TESTS)
   elseif(TARGET ${LIB_STATIC})
     set(_lib_for_tests ${LIB_STATIC})
   else()
-    unset(_lib_for_tests)
+    set(_lib_for_tests "")
     message(STATUS "Skip test requiring static libssh2 lib: ${_test}")
   endif()
 
@@ -95,21 +94,19 @@ foreach(_test IN LISTS DOCKER_TESTS STANDALONE_TESTS SSHD_TESTS)
     add_executable(${_test} "${_test}.c")
     target_compile_definitions(${_test} PRIVATE "${CRYPTO_BACKEND_DEFINE}")
     target_include_directories(${_test} PRIVATE
-      "${CMAKE_CURRENT_BINARY_DIR}/../src"
-      "../src"
-      "../include"
-      "${CRYPTO_BACKEND_INCLUDE_DIR}")
+      "${PROJECT_BINARY_DIR}/src"
+      "${PROJECT_SOURCE_DIR}/src"
+      "${PROJECT_SOURCE_DIR}/include")
     set_target_properties(${_test} PROPERTIES UNITY_BUILD OFF)
+    target_link_libraries(${_test} PRIVATE runner ${_lib_for_tests} ${LIBSSH2_LIBS})
 
     # build a single test with gcov
     if(GCOV_PATH AND _test STREQUAL "test_auth_keyboard_info_request" AND TARGET ${LIB_STATIC})
       target_compile_options(${_test} BEFORE PRIVATE ${_gcov_cflags})
-      target_link_libraries(${_test} runner ${_lib_for_tests} ${LIBSSH2_LIBS} "gcov")
-    else()
-      target_link_libraries(${_test} runner ${_lib_for_tests} ${LIBSSH2_LIBS})
+      target_link_libraries(${_test} PRIVATE "gcov")
     endif()
 
-    list(APPEND TEST_TARGETS ${_test})
+    list(APPEND _test_targets ${_test})
   endif()
 endforeach()
 
@@ -132,10 +129,10 @@ foreach(_test IN LISTS STANDALONE_TESTS)
 endforeach()
 
 if(RUN_SSHD_TESTS AND SSHD_EXECUTABLE)
-  unset(_sshd_test_targets)
+  set(_sshd_test_targets "")
   foreach(_test IN LISTS SSHD_TESTS)
     if(TARGET ${_test})
-      set(_sshd_test_targets "${_sshd_test_targets} $<TARGET_FILE:${_test}>")
+      string(APPEND _sshd_test_targets " $<TARGET_FILE:${_test}>")
     endif()
   endforeach()
 
@@ -167,12 +164,17 @@ endif()
 add_custom_target(coverage
   COMMAND gcovr --root "${PROJECT_SOURCE_DIR}" --exclude tests/*
   COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/coverage"
-  COMMAND gcovr --root "${PROJECT_SOURCE_DIR}" --exclude tests/* --html-details --output "${CMAKE_CURRENT_BINARY_DIR}/coverage/index.html")
+  COMMAND gcovr --root "${PROJECT_SOURCE_DIR}" --exclude tests/* --html-details
+    --output "${CMAKE_CURRENT_BINARY_DIR}/coverage/index.html")
 
 add_custom_target(clean-coverage
   COMMAND rm -rf "${CMAKE_CURRENT_BINARY_DIR}/coverage")
 
-add_target_to_copy_dependencies(
+libssh2_add_target_to_copy_dependencies(
   TARGET copy_test_dependencies
-  DEPENDENCIES ${RUNTIME_DEPENDENCIES}
-  BEFORE_TARGETS ${TEST_TARGETS})
+  DEPENDENCIES ${_runtime_dependencies}
+  BEFORE_TARGETS ${_test_targets})
+
+if(BUILD_OSSFUZZ)
+  add_subdirectory(ossfuzz)
+endif()

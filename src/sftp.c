@@ -675,7 +675,7 @@ sftp_bin2attr(LIBSSH2_SFTP_ATTRIBUTES *attrs, const unsigned char *p,
 {
     struct string_buf buf;
     uint32_t flags = 0;
-    buf.data = (unsigned char *)p;
+    buf.data = (unsigned char *)LIBSSH2_UNCONST(p);
     buf.dataptr = buf.data;
     buf.len = data_len;
 
@@ -793,7 +793,7 @@ static LIBSSH2_SFTP *sftp_init(LIBSSH2_SESSION *session)
          * The 'sftpInit_sftp' and 'sftpInit_channel' struct fields within the
          * session struct are only to be used during the setup phase. As soon
          * as the SFTP session is created they are cleared and can thus be
-         * re-used again to allow any amount of SFTP handles per sessions.
+         * reused again to allow any amount of SFTP handles per sessions.
          *
          * Note that you MUST NOT try to call libssh2_sftp_init() again to get
          * another handle until the previous call has finished and either
@@ -980,7 +980,8 @@ static LIBSSH2_SFTP *sftp_init(LIBSSH2_SESSION *session)
 
     if(_libssh2_get_u32(&buf, &(sftp_handle->version))) {
         LIBSSH2_FREE(session, data);
-        rc = LIBSSH2_ERROR_BUFFER_TOO_SMALL;
+        _libssh2_error(session, LIBSSH2_ERROR_BUFFER_TOO_SMALL,
+                       "Data too short when extracting version");
         goto sftp_init_error;
     }
 

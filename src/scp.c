@@ -45,7 +45,7 @@
 
 #include <stdlib.h>  /* strtoll(), _strtoi64(), strtol() */
 
-#if defined(HAVE_STRTOLL)
+#ifdef HAVE_STRTOLL
 #define scpsize_strtol strtoll
 #elif defined(HAVE_STRTOI64)
 #define scpsize_strtol _strtoi64
@@ -283,6 +283,12 @@ scp_recv(LIBSSH2_SESSION * session, const char *path, libssh2_struct_stat * sb)
     int rc;
     int tmp_err_code;
     const char *tmp_err_msg;
+
+    if(!path) {
+        _libssh2_error(session, LIBSSH2_ERROR_INVAL,
+                       "Path argument can not be null");
+        return NULL;
+    }
 
     if(session->scpRecv_state == libssh2_NB_state_idle) {
         session->scpRecv_mode = 0;
@@ -794,9 +800,7 @@ scp_recv_error:
 
 #ifndef LIBSSH2_NO_DEPRECATED
 /*
- * libssh2_scp_recv
- *
- * DEPRECATED
+ * libssh2_scp_recv (DEPRECATED, DO NOT USE!)
  *
  * Open a channel and request a remote file via SCP.  This receives files
  * larger than 2 GB, but is unable to report the proper size on platforms
@@ -861,6 +865,12 @@ scp_send(LIBSSH2_SESSION * session, const char *path, int mode,
     int rc;
     int tmp_err_code;
     const char *tmp_err_msg;
+
+    if(!path) {
+        _libssh2_error(session, LIBSSH2_ERROR_INVAL,
+                       "Path argument can not be null");
+        return NULL;
+    }
 
     if(session->scpSend_state == libssh2_NB_state_idle) {
         session->scpSend_command_len =
@@ -1153,8 +1163,9 @@ scp_send_error:
     return NULL;
 }
 
+#ifndef LIBSSH2_NO_DEPRECATED
 /*
- * libssh2_scp_send_ex
+ * libssh2_scp_send_ex (DEPRECATED, DO NOT USE!)
  *
  * Send a file using SCP. Old API.
  */
@@ -1168,6 +1179,7 @@ libssh2_scp_send_ex(LIBSSH2_SESSION *session, const char *path, int mode,
                                 (time_t)mtime, (time_t)atime));
     return ptr;
 }
+#endif
 
 /*
  * libssh2_scp_send64

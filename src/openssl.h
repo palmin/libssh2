@@ -160,6 +160,12 @@
 # define LIBSSH2_ED25519 0
 #endif
 
+#if OPENSSL_VERSION_NUMBER >= 0x30500000L && \
+    !defined(LIBRESSL_VERSION_NUMBER)
+# define LIBSSH2_MLKEM 1
+#else
+# define LIBSSH2_MLKEM 0
+#endif
 
 #ifdef OPENSSL_NO_MD5
 # define LIBSSH2_MD5 0
@@ -176,7 +182,8 @@
 #define LIBSSH2_HMAC_SHA256 1
 #define LIBSSH2_HMAC_SHA512 1
 
-#if (OPENSSL_VERSION_NUMBER >= 0x00907000L && !defined(OPENSSL_NO_AES)) || \
+#if (OPENSSL_VERSION_NUMBER >= 0x00907000L && !defined(OPENSSL_NO_AES) && \
+     !defined(LIBSSH2_WOLFSSL)) || \
     (defined(LIBSSH2_WOLFSSL) && defined(WOLFSSL_AES_COUNTER))
 # define LIBSSH2_AES_CTR 1
 # define LIBSSH2_AES_CBC 1

@@ -6,28 +6,29 @@
 #
 # Input variables:
 #
-# - `LIBGCRYPT_INCLUDE_DIR`:   The Libgcrypt include directory.
-# - `LIBGCRYPT_LIBRARY`:       Path to `libgcrypt` library.
+# - `LIBGCRYPT_INCLUDE_DIR`:  The Libgcrypt include directory.
+# - `LIBGCRYPT_LIBRARY`:      Path to `libgcrypt` library.
 #
-# Result variables:
+# Defines:
 #
-# - `LIBGCRYPT_FOUND`:         System has Libgcrypt.
-# - `LIBGCRYPT_INCLUDE_DIRS`:  The Libgcrypt include directories.
-# - `LIBGCRYPT_LIBRARIES`:     The Libgcrypt library names.
-# - `LIBGCRYPT_LIBRARY_DIRS`:  The Libgcrypt library directories.
-# - `LIBGCRYPT_CFLAGS`:        Required compiler flags.
-# - `LIBGCRYPT_VERSION`:       Version of Libgcrypt.
+# - `LIBGCRYPT_FOUND`:        System has Libgcrypt.
+# - `LIBGCRYPT_VERSION`:      Version of Libgcrypt.
+# - `libssh2::libgcrypt`:     libgcrypt library target.
 
-if((UNIX OR VCPKG_TOOLCHAIN OR (MINGW AND NOT CMAKE_CROSSCOMPILING)) AND
+set(_libgcrypt_pc_requires "libgcrypt")
+
+if(LIBSSH2_USE_PKGCONFIG AND
    NOT DEFINED LIBGCRYPT_INCLUDE_DIR AND
    NOT DEFINED LIBGCRYPT_LIBRARY)
   find_package(PkgConfig QUIET)
-  pkg_check_modules(LIBGCRYPT "libgcrypt")
+  pkg_check_modules(_libgcrypt ${_libgcrypt_pc_requires})
 endif()
 
-if(LIBGCRYPT_FOUND)
-  string(REPLACE ";" " " LIBGCRYPT_CFLAGS "${LIBGCRYPT_CFLAGS}")
-  message(STATUS "Found Libgcrypt (via pkg-config): ${LIBGCRYPT_INCLUDE_DIRS} (found version \"${LIBGCRYPT_VERSION}\")")
+if(_libgcrypt_FOUND)
+  set(Libgcrypt_FOUND TRUE)
+  set(LIBGCRYPT_FOUND TRUE)
+  set(LIBGCRYPT_VERSION ${_libgcrypt_VERSION})
+  message(STATUS "Found Libgcrypt (via pkg-config): ${_libgcrypt_INCLUDE_DIRS} (found version \"${LIBGCRYPT_VERSION}\")")
 else()
   find_path(LIBGCRYPT_INCLUDE_DIR NAMES "gcrypt.h")
   find_library(LIBGCRYPT_LIBRARY NAMES "gcrypt" "libgcrypt")
@@ -52,9 +53,25 @@ else()
   )
 
   if(LIBGCRYPT_FOUND)
-    set(LIBGCRYPT_INCLUDE_DIRS ${LIBGCRYPT_INCLUDE_DIR})
-    set(LIBGCRYPT_LIBRARIES    ${LIBGCRYPT_LIBRARY})
+    set(_libgcrypt_INCLUDE_DIRS ${LIBGCRYPT_INCLUDE_DIR})
+    set(_libgcrypt_LIBRARIES    ${LIBGCRYPT_LIBRARY})
   endif()
 
   mark_as_advanced(LIBGCRYPT_INCLUDE_DIR LIBGCRYPT_LIBRARY)
+endif()
+
+if(LIBGCRYPT_FOUND)
+  if(CMAKE_VERSION VERSION_LESS 3.13)
+    link_directories(${_libgcrypt_LIBRARY_DIRS})
+  endif()
+
+  if(NOT TARGET libssh2::libgcrypt)
+    add_library(libssh2::libgcrypt INTERFACE IMPORTED)
+    set_target_properties(libssh2::libgcrypt PROPERTIES
+      INTERFACE_LIBSSH2_PC_MODULES "${_libgcrypt_pc_requires}"
+      INTERFACE_COMPILE_OPTIONS "${_libgcrypt_CFLAGS}"
+      INTERFACE_INCLUDE_DIRECTORIES "${_libgcrypt_INCLUDE_DIRS}"
+      INTERFACE_LINK_DIRECTORIES "${_libgcrypt_LIBRARY_DIRS}"
+      INTERFACE_LINK_LIBRARIES "${_libgcrypt_LIBRARIES}")
+  endif()
 endif()

@@ -61,10 +61,11 @@
 
 #define LIBSSH2_RSA 1
 #define LIBSSH2_RSA_SHA1 1
-#define LIBSSH2_RSA_SHA2 0
+#define LIBSSH2_RSA_SHA2 1
 #define LIBSSH2_DSA 1
 #define LIBSSH2_ECDSA 0
 #define LIBSSH2_ED25519 0
+#define LIBSSH2_MLKEM 0
 
 #include "crypto_config.h"
 
@@ -88,7 +89,7 @@
 #define libssh2_sha1_init(ctx) \
     (GPG_ERR_NO_ERROR == gcry_md_open(ctx, GCRY_MD_SHA1, 0))
 #define libssh2_sha1_update(ctx, data, len) \
-    (gcry_md_write(ctx, (unsigned char *) data, len), 1)
+    (gcry_md_write(ctx, data, len), 1)
 #define libssh2_sha1_final(ctx, out) \
     (memcpy(out, gcry_md_read(ctx, 0), SHA_DIGEST_LENGTH), \
     gcry_md_close(ctx), 1)
@@ -99,7 +100,7 @@
 #define libssh2_sha256_init(ctx) \
     (GPG_ERR_NO_ERROR == gcry_md_open(ctx, GCRY_MD_SHA256, 0))
 #define libssh2_sha256_update(ctx, data, len) \
-    (gcry_md_write(ctx, (unsigned char *) data, len), 1)
+    (gcry_md_write(ctx, data, len), 1)
 #define libssh2_sha256_final(ctx, out) \
     (memcpy(out, gcry_md_read(ctx, 0), SHA256_DIGEST_LENGTH), \
     gcry_md_close(ctx), 1)
@@ -110,7 +111,7 @@
 #define libssh2_sha384_init(ctx) \
     (GPG_ERR_NO_ERROR == gcry_md_open(ctx, GCRY_MD_SHA384, 0))
 #define libssh2_sha384_update(ctx, data, len) \
-    (gcry_md_write(ctx, (unsigned char *) data, len), 1)
+    (gcry_md_write(ctx, data, len), 1)
 #define libssh2_sha384_final(ctx, out) \
     (memcpy(out, gcry_md_read(ctx, 0), SHA384_DIGEST_LENGTH), \
     gcry_md_close(ctx), 1)
@@ -121,7 +122,7 @@
 #define libssh2_sha512_init(ctx) \
     (GPG_ERR_NO_ERROR == gcry_md_open(ctx, GCRY_MD_SHA512, 0))
 #define libssh2_sha512_update(ctx, data, len) \
-    (gcry_md_write(ctx, (unsigned char *) data, len), 1)
+    (gcry_md_write(ctx, data, len), 1)
 #define libssh2_sha512_final(ctx, out) \
     (memcpy(out, gcry_md_read(ctx, 0), SHA512_DIGEST_LENGTH), \
     gcry_md_close(ctx), 1)
@@ -133,7 +134,7 @@
 #define libssh2_md5_init(ctx) \
     (GPG_ERR_NO_ERROR == gcry_md_open(ctx, GCRY_MD_MD5, 0))
 #define libssh2_md5_update(ctx, data, len) \
-    (gcry_md_write(ctx, (unsigned char *) data, len), 1)
+    (gcry_md_write(ctx, data, len), 1)
 #define libssh2_md5_final(ctx, out) \
     (memcpy(out, gcry_md_read(ctx, 0), MD5_DIGEST_LENGTH), \
     gcry_md_close(ctx), 1)
