@@ -1832,13 +1832,31 @@ retry_auth:
            strncmp((const char *)session->userauth_pblc_method,
                    "sk-ssh-ed25519@openssh.com",
                    session->userauth_pblc_method_len) == 0) {
+            /* allow sign callback to override the signature method name
+               by prepending it as a string (e.g. for webauthn signatures) */
+            const char *sig_method =
+                (const char *)session->userauth_pblc_method;
+            size_t sig_method_len = session->userauth_pblc_method_len;
+            const unsigned char *sig_data = sig;
+            size_t sig_data_len = sig_len;
+
+            if(sig_len > 13) {
+                uint32_t first_len = _libssh2_ntohu32(sig);
+                if(first_len > 9 && first_len <= sig_len - 4 &&
+                   memcmp(sig + 4, "webauthn-", 9) == 0) {
+                    sig_method = (const char *)sig + 4;
+                    sig_method_len = first_len;
+                    sig_data = sig + 4 + first_len;
+                    sig_data_len = sig_len - 4 - first_len;
+                }
+            }
+
             _libssh2_store_u32(&s,
-                             (uint32_t)(4 + session->userauth_pblc_method_len +
-                                        sig_len));
-            _libssh2_store_str(&s, (const char *)session->userauth_pblc_method,
-                               session->userauth_pblc_method_len);
-            memcpy(s, sig, sig_len);
-            s += sig_len;
+                             (uint32_t)(4 + sig_method_len +
+                                        sig_data_len));
+            _libssh2_store_str(&s, sig_method, sig_method_len);
+            memcpy(s, sig_data, sig_data_len);
+            s += sig_data_len;
         }
         else {
             _libssh2_store_u32(&s,

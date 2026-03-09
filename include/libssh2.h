@@ -746,6 +746,12 @@ libssh2_userauth_publickey_fromfile_ex(LIBSSH2_SESSION *session,
                                            (publickey),                    \
                                            (privatekey), (passphrase))
 
+/* For sk-ecdsa/sk-ed25519 keys, the sign_callback may prepend a
+   string to sig to override the signature algorithm name used in
+   the signature wrapper. If sig starts with a string beginning
+   with "webauthn-", it is used as the algorithm name and the
+   remainder of sig is the signature data. Otherwise the key type
+   from pubkeydata is used as default. */
 LIBSSH2_API int
 libssh2_userauth_publickey(LIBSSH2_SESSION *session,
                            const char *username,
