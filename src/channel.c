@@ -283,29 +283,66 @@ _libssh2_channel_open(LIBSSH2_SESSION * session, const char *channel_type,
         }
 
         if(session->open_data[0] == SSH_MSG_CHANNEL_OPEN_FAILURE) {
-            unsigned int reason_code =
-                _libssh2_ntohu32(session->open_data + 5);
+            unsigned int reason_code;
+            const char *reason;
+            char description[201];
+            char message[300];
+            size_t description_len = 0;
+
+            /* recipient channel and reason code come before the description */
+            if(session->open_data_len < 9) {
+                _libssh2_error(session, LIBSSH2_ERROR_PROTO,
+                               "Unexpected packet size");
+                goto channel_error;
+            }
+
+            reason_code = _libssh2_ntohu32(session->open_data + 5);
             switch(reason_code) {
             case SSH_OPEN_ADMINISTRATIVELY_PROHIBITED:
-                _libssh2_error(session, LIBSSH2_ERROR_CHANNEL_FAILURE,
-                               "Channel open failure "
-                               "(administratively prohibited)");
+                reason = "Channel open failure (administratively prohibited)";
                 break;
             case SSH_OPEN_CONNECT_FAILED:
-                _libssh2_error(session, LIBSSH2_ERROR_CHANNEL_FAILURE,
-                               "Channel open failure (connect failed)");
+                reason = "Channel open failure (connect failed)";
                 break;
             case SSH_OPEN_UNKNOWN_CHANNELTYPE:
-                _libssh2_error(session, LIBSSH2_ERROR_CHANNEL_FAILURE,
-                               "Channel open failure (unknown channel type)");
+                reason = "Channel open failure (unknown channel type)";
                 break;
             case SSH_OPEN_RESOURCE_SHORTAGE:
-                _libssh2_error(session, LIBSSH2_ERROR_CHANNEL_FAILURE,
-                               "Channel open failure (resource shortage)");
+                reason = "Channel open failure (resource shortage)";
                 break;
             default:
+                reason = "Channel open failure";
+            }
+
+            /* the server's description, such as why a direct-tcpip connect
+               failed, is what explains the failure; it is shown to users, so
+               it is shortened and control characters are replaced */
+            if(session->open_data_len >= 13) {
+                size_t len = _libssh2_ntohu32(session->open_data + 9);
+                const unsigned char *text = session->open_data + 13;
+                size_t i;
+                if(len <= session->open_data_len - 13) {
+                    if(len > sizeof(description) - 1)
+                        len = sizeof(description) - 1;
+                    for(i = 0; i < len; i++) {
+                        unsigned char c = text[i];
+                        description[i] = (c < 0x20 || c == 0x7f) ? '?' :
+                                         (char)c;
+                    }
+                    description_len = len;
+                }
+            }
+            description[description_len] = '\0';
+
+            if(description_len > 0) {
+                snprintf(message, sizeof(message), "%s: %s", reason,
+                         description);
+                _libssh2_error_flags(session, LIBSSH2_ERROR_CHANNEL_FAILURE,
+                                     message, LIBSSH2_ERR_FLAG_DUP);
+            }
+            else {
                 _libssh2_error(session, LIBSSH2_ERROR_CHANNEL_FAILURE,
-                               "Channel open failure");
+                               reason);
             }
         }
     }
